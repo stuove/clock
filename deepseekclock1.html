@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>智能计时器 · 多标签对比 · 累计统计</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0b1820 0%, #1a2f3a 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Poppins', 'Inter', system-ui, sans-serif;
+            padding: 20px;
+        }
+        .dashboard { max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+        
+        .middle-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            align-items: stretch;
+        }
+        .timer-card {
+            flex: 1.2; min-width: 300px;
+            background: rgba(10, 25, 35, 0.85);
+            backdrop-filter: blur(16px);
+            border-radius: 48px;
+            padding: 24px 22px;
+            border: 1px solid rgba(255, 215, 150, 0.3);
+            box-shadow: 0 20px 35px rgba(0,0,0,0.4);
+        }
+        .heatmap-card {
+            flex: 1.5; 
+            min-width: 340px;
+            background: rgba(10, 25, 35, 0.85);
+            backdrop-filter: blur(16px);
+            border-radius: 36px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 215, 150, 0.4);
+        }
+        .stats-summary {
+            flex: 1; min-width: 260px;
+            background: rgba(5, 15, 22, 0.92);
+            backdrop-filter: blur(16px);
+            border-radius: 48px;
+            padding: 22px;
+            border: 1px solid rgba(255, 180, 71, 0.5);
+            overflow-y: auto;
+            max-height: 600px;
+        }
+        
+        .heatmap-title {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #ffd966;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .week-navigation {
+            display: flex;
+            gap: 4px;
+            background: #0e1f28;
+            padding: 2px 8px;
+            border-radius: 40px;
+        }
+        .week-navigation button {
+            background: #ffb34733;
+            border: none;
+            padding: 2px 8px;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.6rem;
+            font-weight: bold;
+        }
+        .week-navigation button:hover { background: #ffb347; color: #1a2f3a; }
+        #currentWeekRange { font-size: 0.65rem; color: #ffdd99; font-weight: bold; }
+        .heatmap-table-wrapper {
+            overflow-x: auto;
+            overflow-y: auto;
+            border-radius: 18px;
+            background: #07161f60;
+            padding: 1px;
+            max-height: 540px;
+        }
+        .hour-week-grid {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 380px;
+            font-size: 0.5rem;
+            background: #0a1a2290;
+            table-layout: fixed;
+        }
+        .hour-week-grid th, .hour-week-grid td {
+            border: 1px solid #ffb34766;
+            padding: 2px 1px;
+            text-align: center;
+            vertical-align: middle;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .hour-week-grid th {
+            background: #1f3e4b;
+            color: #ffdd99;
+            font-weight: 600;
+            font-size: 0.5rem;
+            padding: 2px 1px;
+        }
+        .hour-week-grid th:first-child, .hour-week-grid td:first-child {
+            width: 8px;
+            min-width: 8px;
+            max-width: 8px;
+            padding: 2px 0px;
+            font-size: 0.44rem;
+            font-weight: bold;
+            letter-spacing: -0.8px;
+        }
+        .hour-week-grid th:not(:first-child), .hour-week-grid td:not(:first-child) {
+            width: 15px;
+            min-width: 15px;
+            max-width: 15px;
+            padding: 2px 1px;
+        }
+        .hour-cell {
+            background-color: #0e222c;
+            cursor: pointer;
+            height: 21px;
+            width: 15px;
+        }
+        .minute-segment {
+            height: 100%;
+            display: inline-block;
+            background-color: rgba(0,0,0,0.3);
+            transition: 0.05s;
+        }
+        .tooltip-bubble {
+            position: fixed;
+            background: #1e2f38ee;
+            backdrop-filter: blur(8px);
+            color: #ffefcf;
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 0.65rem;
+            border-left: 3px solid #ffaa44;
+            pointer-events: none;
+            z-index: 2000;
+            white-space: nowrap;
+            font-weight: 500;
+            box-shadow: 0 4px 12px black;
+        }
+        .color-palette {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0 8px;
+            align-items: center;
+        }
+        .color-swatch {
+            width: 26px;
+            height: 26px;
+            border-radius: 30px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .color-swatch.selected-tag-color {
+            border: 3px solid white;
+            transform: scale(1.05);
+            box-shadow: 0 0 0 2px #ffaa33;
+        }
+        .tag-color-label { font-size: 0.7rem; color: #ffcc88; margin-right: 5px; }
+        .chart-section {
+            background: rgba(10, 25, 35, 0.75);
+            backdrop-filter: blur(16px);
+            border-radius: 48px;
+            padding: 20px;
+            border: 1px solid rgba(255, 200, 120, 0.4);
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .tag-selector-panel {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            background: #0e1f28aa;
+            padding: 8px 16px;
+            border-radius: 60px;
+        }
+        .tag-check-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #1a3e4c;
+            padding: 4px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: 0.1s;
+            border: 1px solid transparent;
+        }
+        .tag-check-item.selected {
+            border-color: #ffaa44;
+            background: #2a5a6e;
+            box-shadow: 0 0 6px #ffaa66;
+        }
+        .tag-check-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        .tag-check-label {
+            color: #ffefcf;
+        }
+        .month-selector { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+        .month-nav { display: flex; gap: 8px; background: #0e1f28; padding: 4px 16px; border-radius: 60px; }
+        .month-nav button { background: #ffb34733; border: none; padding: 4px 14px; border-radius: 30px; color: white; cursor: pointer; }
+        #currentMonthYear { font-size: 1rem; font-weight: bold; color: #ffd966; }
+        canvas { max-height: 280px; width: 100%; margin-top: 8px; }
+        .table-wrapper { overflow-x: auto; margin-top: 20px; border-radius: 28px; background: #0a1a22aa; padding: 6px; }
+        .stats-table { width: 100%; border-collapse: collapse; color: #eef4ff; font-size: 0.75rem; }
+        .stats-table th, .stats-table td { padding: 8px 4px; border-bottom: 1px solid #ffb34755; text-align: center; }
+        .stats-table th { background: #1f3e4b; color: #ffdd99; }
+        .control-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .small-btn { background: #2c4a5e; border: none; padding: 4px 12px; border-radius: 30px; color: white; cursor: pointer; font-size: 0.7rem; }
+        .archive-btn { background: #8e6b2c; }
+        .countdown-circle { text-align: center; margin-bottom: 18px; background: rgba(0,0,0,0.4); border-radius: 60px; padding: 16px 8px; }
+        #timeDisplay { font-size: 3rem; font-family: monospace; letter-spacing: 4px; color: #f5f9ff; }
+        .progress-ring { height: 5px; background: #2c4a5e; border-radius: 10px; margin-top: 10px; }
+        #progressFill { width: 0%; height: 100%; background: linear-gradient(90deg, #f39c12, #e67e22); border-radius: 10px; }
+        .set-area { background: rgba(0,0,0,0.3); border-radius: 40px; padding: 16px; margin-bottom: 16px; }
+        .dual-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .minutes-box {
+            flex: 1;
+            background: #07161f80;
+            border-radius: 50px;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .minutes-box span { color: #ffdd99; font-size: 0.8rem; white-space: nowrap; }
+        #minutesInputNumber {
+            width: 70px;
+            background: #0a1a22;
+            border: 1px solid #ffb347;
+            border-radius: 40px;
+            padding: 6px;
+            text-align: center;
+            color: #ffdd99;
+            font-size: 0.9rem;
+        }
+        .tag-input-area {
+            flex: 2;
+            background: #07161f80;
+            border-radius: 50px;
+            padding: 8px 14px;
+        }
+        #tagNameInput {
+            background: #0a1a22;
+            border: 1px solid #ffb347;
+            border-radius: 40px;
+            padding: 6px 12px;
+            color: white;
+            width: 100%;
+            font-size: 0.8rem;
+        }
+        .slider-container { display: none; }
+        .ring-options { display: flex; gap: 12px; justify-content: center; margin: 12px 0; }
+        .ring-card { background: #10262f; border-radius: 40px; padding: 5px 16px; cursor: pointer; border: 2px solid transparent; font-size: 0.75rem; }
+        .ring-card.selected { border-color: #ffb347; background: #1a3e4c; }
+        .action-buttons { display: flex; gap: 12px; justify-content: center; margin: 14px 0; flex-wrap: wrap; }
+        .btn { border: none; padding: 8px 20px; border-radius: 50px; font-weight: bold; color: white; cursor: pointer; }
+        .btn-start { background: #2c7a4d; }
+        .btn-stop { background: #9e3c2c; }
+        .btn-cancel { background: #6c757d; color: white; box-shadow: 0 2px 0 #495057; }
+        .btn-cancel:hover { background: #5a6268; }
+        .status-panel { background: rgba(0,0,0,0.45); border-radius: 40px; padding: 8px; text-align: center; font-size: 0.8rem; }
+        #statusMsg { color: #ffd966; font-weight: bold; }
+        footer { font-size: 0.6rem; text-align: center; margin-top: 12px; color: #86aec9; }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            margin-bottom: 5px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 30px;
+            border-left: 3px solid #ffaa33;
+        }
+        .stat-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #ffcc66;
+            font-size: 0.8rem;
+        }
+        .stat-count { background: transparent; padding: 3px 10px; border-radius: 30px; color: #ffaa44; font-weight: bold; font-size: 0.7rem; border: 1px solid #ffaa3355; }
+        .recent-records { margin-top: 16px; border-top: 1px solid #ffaa3355; padding-top: 10px; }
+        .recent-title { font-size: 0.8rem; color: #ffaa44; font-weight: bold; margin-bottom: 8px; }
+        .recent-item {
+            background: rgba(0,0,0,0.6);
+            border-radius: 28px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            border-left: 3px solid #ffaa44;
+            color: #ffdd99;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .recent-item .rec-info {
+            color: #ffdd99;
+            font-weight: 500;
+            word-break: break-word;
+        }
+        .rec-edit-btn {
+            background: #ffaa33;
+            border: none;
+            cursor: pointer;
+            font-size: 0.65rem;
+            margin-left: 4px;
+            padding: 3px 8px;
+            border-radius: 30px;
+            font-weight: bold;
+            color: #1a2f3a;
+            transition: 0.1s;
+        }
+        .rec-edit-btn:hover { background: #ffcc66; }
+        .rec-del-btn {
+            background: #2e7d32;
+            border: none;
+            cursor: pointer;
+            font-size: 0.65rem;
+            margin-left: 4px;
+            padding: 3px 8px;
+            border-radius: 30px;
+            font-weight: bold;
+            color: white;
+            transition: 0.1s;
+        }
+        .rec-del-btn:hover { background: #43a047; }
+        .clickable-date { cursor: pointer; text-decoration: underline dotted; color: #ffbb66; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #1a2f3a; border-radius: 32px; padding: 20px; max-width: 500px; width: 90%; max-height: 70vh; overflow-y: auto; border: 1px solid #ffaa33; color: #eef4ff; }
+        .record-list-item { background: #0e1f28; border-radius: 20px; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+        .edit-color-row { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+        .color-preview { width: 40px; height: 40px; border-radius: 30px; border: 2px solid #fff; cursor: pointer; }
+        .color-picker-input { width: 80px; background: #0a1a22; border: 1px solid #ffb347; border-radius: 40px; padding: 6px; text-align: center; color: #ffdd99; }
+        .preset-colors { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .preset-swatch { width: 28px; height: 28px; border-radius: 30px; cursor: pointer; border: 2px solid transparent; transition: 0.1s; }
+        .preset-swatch:hover { transform: scale(1.1); border-color: white; }
+
+        /* 常用标签区域样式 */
+        .quick-tags-section {
+            margin: 12px 0 8px;
+            padding: 10px;
+            background: rgba(0,0,0,0.25);
+            border-radius: 28px;
+        }
+        .quick-tags-title {
+            font-size: 0.65rem;
+            color: #aaccdd;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .quick-tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .quick-tag-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: #1a3a48;
+            border: 1.5px solid rgba(255, 180, 71, 0.3);
+            border-radius: 30px;
+            padding: 3px 12px 3px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            color: #ffefcf;
+            transition: 0.1s;
+            white-space: nowrap;
+        }
+        .quick-tag-btn:hover {
+            background: #2a5a6e;
+            border-color: #ffaa44;
+            transform: scale(1.02);
+        }
+        .quick-tag-btn .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .quick-tag-btn .tag-name {
+            font-weight: 500;
+        }
+        .quick-tag-btn .tag-count-badge {
+            background: rgba(0,0,0,0.4);
+            border-radius: 20px;
+            padding: 0 6px;
+            font-size: 0.55rem;
+            color: #aaccdd;
+        }
+        .clear-tags-btn {
+            background: transparent;
+            border: 1px dashed #6a8a9a;
+            border-radius: 30px;
+            padding: 3px 10px;
+            cursor: pointer;
+            font-size: 0.6rem;
+            color: #8aacbc;
+            transition: 0.1s;
+        }
+        .clear-tags-btn:hover {
+            background: #4a3a2a;
+            border-color: #cc8844;
+            color: #ffcc88;
+        }
+        .quick-tag-btn.active-tag {
+            border-color: #ffaa44;
+            background: #2a5a6e;
+            box-shadow: 0 0 12px rgba(255, 170, 68, 0.25);
+        }
+        .quick-tag-btn .tag-remove-btn {
+            background: rgba(200, 80, 60, 0.3);
+            border: none;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            font-size: 0.5rem;
+            color: #ffaa88;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            margin-left: 2px;
+            transition: 0.1s;
+        }
+        .quick-tag-btn .tag-remove-btn:hover {
+            background: rgba(220, 60, 40, 0.6);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="middle-row">
+        <div class="timer-card">
+            <div class="countdown-circle">
+                <div class="timer-label">⏳ 倒 计 时</div>
+                <div id="timeDisplay">00:00</div>
+                <div class="progress-ring"><div id="progressFill"></div></div>
+            </div>
+            <div class="set-area">
+                <div class="dual-row">
+                    <div class="minutes-box">
+                        <span>⏲️ 分钟</span>
+                        <input type="number" id="minutesInputNumber" min="1" max="120" value="5" step="1">
+                    </div>
+                    <div class="tag-input-area">
+                        <input type="text" id="tagNameInput" placeholder="🏷️ 标签名称 (如: 工作, 学习)" maxlength="30">
+                    </div>
+                </div>
+
+                <!-- 常用标签快速选择 -->
+                <div class="quick-tags-section" id="quickTagsSection">
+                    <div class="quick-tags-title">
+                        ⚡ 常用标签
+                        <span style="font-size:0.55rem;color:#8899aa;font-weight:normal;">（点击自动填入）</span>
+                        <button class="clear-tags-btn" id="clearQuickTagsBtn" title="清空所有常用标签">✕ 清空</button>
+                    </div>
+                    <div class="quick-tags-container" id="quickTagsContainer">
+                        <span style="font-size:0.6rem;color:#667788;padding:4px 0;">暂无常用标签，使用计时后自动添加</span>
+                    </div>
+                </div>
+
+                <div class="color-palette" id="colorPaletteContainer">
+                    <span class="tag-color-label">🎨 标签颜色:</span>
+                </div>
+                <div class="ring-options" id="ringOptions">
+                    <div class="ring-card" data-ring="classic"><span>🔔</span><span>经典</span></div>
+                    <div class="ring-card" data-ring="melody"><span>🎵</span><span>柔和</span></div>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <button class="btn btn-start" id="startBtn">▶ 开始计时</button>
+                <button class="btn btn-stop" id="stopBtn">⏹️ 停止计时</button>
+                <button class="btn btn-cancel" id="cancelBtn">❌ 取消计时</button>
+            </div>
+            <div class="status-panel"><div>📢 状态</div><div id="statusMsg">⚡ 等待开始</div></div>
+            <footer>停止计时：立即停止闹铃，不足1分钟舍去；取消计时：完全丢弃不记录<br>点击编辑按钮可同时修改标签名、时长和颜色</footer>
+        </div>
+
+        <div class="heatmap-card">
+            <div class="heatmap-title">
+                <span>📆 本周活动热图 (分钟级彩条·悬浮标签) [06:00-23:00]</span>
+                <div class="week-navigation">
+                    <button id="prevWeekBtn">◀</button>
+                    <span id="currentWeekRange"></span>
+                    <button id="nextWeekBtn">▶</button>
+                    <button id="resetWeekTodayBtn" style="background:#3a6b47;">🗓️</button>
+                </div>
+            </div>
+            <div class="heatmap-table-wrapper" id="heatmapWrapper">
+                <table class="hour-week-grid" id="hourWeekTable">
+                    <thead id="weekTableHead"></thead>
+                    <tbody id="weekTableBody"></tbody>
+                </table>
+            </div>
+            <div style="font-size:0.55rem; text-align:center; margin-top:4px; color:#bcd3e6;">✔️ 悬浮显示标签 · 点击编辑可修改颜色</div>
+        </div>
+
+        <div class="stats-summary">
+            <div style="font-size:1rem; font-weight:bold; color:#ffaa33; margin-bottom:10px;">📊 今日标签统计</div>
+            <div id="todayTagStatsContent">加载中...</div>
+            <div class="recent-records"><div class="recent-title">📋 最近5条记录</div><div id="recentRecordsList">暂无记录</div></div>
+            <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+                <button id="resetAllDataBtn" class="small-btn" style="background:#6e2a1f;">🗑️ 清空全部</button>
+                <button id="archivePrevMonthBtn" class="small-btn archive-btn">📦 归档上月</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-section">
+        <div class="month-selector">
+            <div class="month-nav"><button id="prevMonthBtn">◀</button><span id="currentMonthYear">2025年5月</span><button id="nextMonthBtn">▶</button></div>
+            <button id="refreshChartBtn" class="small-btn">🔄 刷新图表</button>
+        </div>
+        <div class="chart-header">
+            <div class="tag-selector-panel" id="tagSelectorPanel">
+                <span style="color:#ffcc88; font-size:0.75rem;">📈 对比标签 (最多3个):</span>
+            </div>
+            <div class="control-buttons"><button id="exportMonthCSVBtn" class="small-btn">📎 导出本月CSV</button></div>
+        </div>
+        <canvas id="multiTagChart" width="800" height="280" style="max-height: 280px;"></canvas>
+        <div class="table-wrapper">
+            <table class="stats-table" id="dailyDetailTable">
+                <thead id="dailyTableHead"></thead>
+                <tbody id="tableBody"></tbody>
+                <tfoot id="tableFoot" style="background:#2a5a6e; font-weight:bold;"></tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+<div id="recordModal" class="modal"><div class="modal-content"><h3 id="modalTitle">📝 编辑记录</h3><div id="modalRecordsList"></div><button class="close-modal" id="closeModalBtn">关闭</button></div></div>
+
+<script>
+    const COLOR_PALETTE = ["#FFB3BA", "#C5E99B", "#9AD0F5", "#FFDAC1", "#B5EAD7", "#FF9AA2", "#D4A5A5", "#C7CEEA", "#FFD966", "#A2D2FF", "#DEACFA", "#6A4E9B"];
+    let selectedTagColor = COLOR_PALETTE[0];
+    let dailyRecords = {};
+    
+    // ========== 常用标签管理 ==========
+    const QUICK_TAGS_KEY = 'quick_tags_list';
+    
+    function getQuickTags() {
+        try {
+            const stored = localStorage.getItem(QUICK_TAGS_KEY);
+            return stored ? JSON.parse(stored) : [];
+        } catch { return []; }
+    }
+    
+    function saveQuickTags(tags) {
+        localStorage.setItem(QUICK_TAGS_KEY, JSON.stringify(tags));
+        renderQuickTags();
+    }
+    
+    // 从历史记录中提取常用标签（按使用次数排序，取前8个）
+    function extractQuickTagsFromHistory() {
+        const tagCount = new Map();
+        const tagColor = new Map();
+        for (const date in dailyRecords) {
+            for (const rec of dailyRecords[date]) {
+                const name = rec.tag;
+                if (!tagCount.has(name)) {
+                    tagCount.set(name, 0);
+                    tagColor.set(name, rec.colorHex || COLOR_PALETTE[0]);
+                }
+                tagCount.set(name, tagCount.get(name) + 1);
+                // 如果记录中有颜色，更新为最新使用的颜色
+                if (rec.colorHex) tagColor.set(name, rec.colorHex);
+            }
+        }
+        const sorted = Array.from(tagCount.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([name, count]) => ({
+                name: name,
+                color: tagColor.get(name) || COLOR_PALETTE[0],
+                count: count
+            }));
+        return sorted;
+    }
+    
+    // 更新常用标签：从历史记录自动提取，并保存
+    function updateQuickTagsFromHistory() {
+        const extracted = extractQuickTagsFromHistory();
+        if (extracted.length > 0) {
+            saveQuickTags(extracted);
+        }
+    }
+    
+    // 渲染常用标签按钮
+    function renderQuickTags() {
+        const container = document.getElementById('quickTagsContainer');
+        const tags = getQuickTags();
+        if (!tags || tags.length === 0) {
+            container.innerHTML = `<span style="font-size:0.6rem;color:#667788;padding:4px 0;">暂无常用标签，使用计时后自动添加</span>`;
+            return;
+        }
+        let html = '';
+        for (const tag of tags) {
+            const color = tag.color || COLOR_PALETTE[0];
+            const count = tag.count || 0;
+            html += `<div class="quick-tag-btn" data-tag="${escapeHtml(tag.name)}" data-color="${escapeHtml(color)}" onclick="applyQuickTag('${escapeHtml(tag.name)}', '${escapeHtml(color)}')">
+                        <span class="color-dot" style="background-color:${color};"></span>
+                        <span class="tag-name">${escapeHtml(tag.name)}</span>
+                        <span class="tag-count-badge">${count}次</span>
+                        <span class="tag-remove-btn" onclick="event.stopPropagation();removeQuickTag('${escapeHtml(tag.name)}')">✕</span>
+                     </div>`;
+        }
+        container.innerHTML = html;
+    }
+    
+    // 点击常用标签：自动填入标签名和颜色
+    function applyQuickTag(tagName, color) {
+        if (isRunning || isRingingFlag) {
+            statusMsgSpan.innerHTML = '⛔ 请先停止当前计时';
+            return;
+        }
+        document.getElementById('tagNameInput').value = tagName;
+        // 选中颜色
+        selectedTagColor = color;
+        document.querySelectorAll('.color-swatch').forEach(el => {
+            el.classList.remove('selected-tag-color');
+            if (el.style.backgroundColor === color || el.style.backgroundColor === color) {
+                el.classList.add('selected-tag-color');
+            }
+        });
+        // 高亮当前选中的常用标签
+        document.querySelectorAll('.quick-tag-btn').forEach(el => {
+            el.classList.remove('active-tag');
+            if (el.getAttribute('data-tag') === tagName) {
+                el.classList.add('active-tag');
+            }
+        });
+        statusMsgSpan.innerHTML = `🏷️ 已选择标签: ${tagName}`;
+        // 同时更新颜色预览
+        updateColorPreview(color);
+    }
+    
+    function updateColorPreview(color) {
+        // 如果颜色面板中有预览可以更新，这里简单处理
+    }
+    
+    // 移除单个常用标签
+    function removeQuickTag(tagName) {
+        let tags = getQuickTags();
+        tags = tags.filter(t => t.name !== tagName);
+        saveQuickTags(tags);
+        renderQuickTags();
+        statusMsgSpan.innerHTML = `🗑️ 已移除标签: ${tagName}`;
+    }
+    
+    // 清空所有常用标签
+    function clearAllQuickTags() {
+        if (confirm('确定清空所有常用标签吗？')) {
+            saveQuickTags([]);
+            renderQuickTags();
+            statusMsgSpan.innerHTML = '🗑️ 已清空常用标签';
+        }
+    }
+    
+    // 在计时结束后，更新常用标签
+    function updateQuickTagsAfterRecord(tagName, color) {
+        let tags = getQuickTags();
+        const existing = tags.find(t => t.name === tagName);
+        if (existing) {
+            existing.count = (existing.count || 0) + 1;
+            existing.color = color || existing.color;
+        } else {
+            tags.push({ name: tagName, color: color || COLOR_PALETTE[0], count: 1 });
+        }
+        // 按使用次数排序，最多保留8个
+        tags.sort((a, b) => (b.count || 0) - (a.count || 0));
+        if (tags.length > 8) tags = tags.slice(0, 8);
+        saveQuickTags(tags);
+    }
+
+    // ========== 原有功能 ==========
+    function formatLocalDate(date) { const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+    function loadData() { const stored = localStorage.getItem('alarm_edit_color_v2'); if(stored) { try{ dailyRecords=JSON.parse(stored); }catch(e){ dailyRecords={}; } } else dailyRecords={}; }
+    function saveData() { localStorage.setItem('alarm_edit_color_v2', JSON.stringify(dailyRecords)); }
+    
+    let currentTimerStartTime = null, currentTimerTag = null, currentTimerColor = null, isActiveTimer = false;
+    
+    function addRecordWithInterval(tagName, durationMinutesInt, startMoment, endMoment, colorHex) {
+        if(durationMinutesInt <= 0) return;
+        if(!tagName||tagName.trim()==="") tagName="未命名";
+        const dateKey = formatLocalDate(startMoment);
+        if(!dailyRecords[dateKey]) dailyRecords[dateKey]=[];
+        dailyRecords[dateKey].push({
+            id: Date.now()+Math.random()*10000,
+            tag: tagName.trim(),
+            durationMinutes: durationMinutesInt,
+            startTimestamp: startMoment.getTime(),
+            endTimestamp: endMoment.getTime(),
+            colorHex: colorHex
+        });
+        saveData();
+        refreshAllViews();
+        renderHeatmapForWeek(currentWeekBaseDate);
+        // 更新常用标签
+        updateQuickTagsAfterRecord(tagName.trim(), colorHex);
+    }
+    
+    function deleteRecord(dateKey,recordId){ if(dailyRecords[dateKey]){ dailyRecords[dateKey]=dailyRecords[dateKey].filter(r=>r.id!=recordId); if(dailyRecords[dateKey].length===0) delete dailyRecords[dateKey]; saveData(); refreshAllViews(); renderHeatmapForWeek(currentWeekBaseDate); updateQuickTagsFromHistory(); return true;} return false; }
+    
+    function editRecordFull(dateKey, recordId, newTag, newDuration, newColor) {
+        if(dailyRecords[dateKey]) {
+            let rec = dailyRecords[dateKey].find(r => r.id == recordId);
+            if(rec) {
+                if(newTag && newTag.trim()) rec.tag = newTag.trim();
+                if(newDuration && !isNaN(newDuration) && newDuration > 0) rec.durationMinutes = Math.floor(parseFloat(newDuration));
+                if(newColor && newColor.trim()) rec.colorHex = newColor.trim();
+                saveData();
+                refreshAllViews();
+                renderHeatmapForWeek(currentWeekBaseDate);
+                updateQuickTagsFromHistory();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    window.openEditPromptWithColor = function(dateKey, recordId, currentTag, currentDuration, currentColor) {
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; display:flex; justify-content:center; align-items:center;';
+        const panel = document.createElement('div');
+        panel.style.cssText = 'background:#1a2f3a; border-radius:32px; padding:24px; max-width:450px; width:90%; border:1px solid #ffaa33; color:#eef4ff;';
+        
+        let tempColor = currentColor || COLOR_PALETTE[0];
+        
+        panel.innerHTML = `
+            <h3 style="color:#ffd966; margin-bottom:20px;">✏️ 编辑记录</h3>
+            <div style="margin-bottom:15px;">
+                <label style="display:block; margin-bottom:5px;">🏷️ 标签名称</label>
+                <input type="text" id="editTagInput" value="${escapeHtml(currentTag)}" style="width:100%; background:#0a1a22; border:1px solid #ffb347; border-radius:40px; padding:10px 15px; color:white;">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label style="display:block; margin-bottom:5px;">⏱️ 时长 (分钟)</label>
+                <input type="number" id="editDurationInput" value="${currentDuration}" min="1" max="999" style="width:100%; background:#0a1a22; border:1px solid #ffb347; border-radius:40px; padding:10px 15px; color:white;">
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block; margin-bottom:5px;">🎨 标签颜色</label>
+                <div class="edit-color-row">
+                    <div id="editColorPreview" class="color-preview" style="background-color:${tempColor};"></div>
+                    <input type="text" id="editColorInput" class="color-picker-input" value="${tempColor}" style="width:100px;">
+                </div>
+                <div class="preset-colors" id="editPresetColors"></div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button id="editCancelBtn" style="background:#6c757d; border:none; padding:8px 20px; border-radius:40px; color:white; cursor:pointer;">取消</button>
+                <button id="editSaveBtn" style="background:#2c7a4d; border:none; padding:8px 20px; border-radius:40px; color:white; cursor:pointer;">保存</button>
+            </div>
+        `;
+        modal.appendChild(panel);
+        document.body.appendChild(modal);
+        
+        const presetContainer = panel.querySelector('#editPresetColors');
+        COLOR_PALETTE.forEach(c => {
+            const swatch = document.createElement('div');
+            swatch.className = 'preset-swatch';
+            swatch.style.backgroundColor = c;
+            swatch.addEventListener('click', () => {
+                tempColor = c;
+                document.getElementById('editColorInput').value = c;
+                document.getElementById('editColorPreview').style.backgroundColor = c;
+            });
+            presetContainer.appendChild(swatch);
+        });
+        
+        const colorInput = document.getElementById('editColorInput');
+        const colorPreview = document.getElementById('editColorPreview');
+        colorInput.addEventListener('input', (e) => {
+            tempColor = e.target.value;
+            colorPreview.style.backgroundColor = tempColor;
+        });
+        
+        document.getElementById('editCancelBtn').onclick = () => modal.remove();
+        document.getElementById('editSaveBtn').onclick = () => {
+            const newTag = document.getElementById('editTagInput').value;
+            const newDuration = parseInt(document.getElementById('editDurationInput').value, 10);
+            const newColor = document.getElementById('editColorInput').value;
+            if(newTag && newTag.trim() && newDuration > 0) {
+                editRecordFull(dateKey, recordId, newTag, newDuration, newColor);
+                statusMsgSpan.innerHTML = `✏️ 已修改记录 (${newTag}, ${newDuration}分钟)`;
+                setTimeout(() => { if(!isRunning && !isRingingFlag) statusMsgSpan.innerHTML = '⚡ 等待开始'; }, 2000);
+            } else {
+                alert('请填写有效的标签名称和时长');
+            }
+            modal.remove();
+        };
+    };
+    
+    window.openEditPrompt = function(dateKey, id, tag, dur, color) {
+        openEditPromptWithColor(dateKey, id, tag, dur, color);
+    };
+    
+    window.confirmDelete = function(dateKey, id) { if(confirm('删除记录？')) deleteRecord(dateKey, id); };
+    
+    function getAllRecordsSorted(limit=6){ let arr=[]; for(let [date,records] of Object.entries(dailyRecords)) for(let rec of records) arr.push({date,...rec}); arr.sort((a,b)=>b.startTimestamp-a.startTimestamp); return arr.slice(0,limit); }
+    function refreshAllViews(){ renderTodayStats(); renderMonthTableWithCumulative(currentYear, currentMonth); renderRecentRecords(); updateTagSelector(); renderMultiTagChart(); }
+    
+    function renderTodayStats(){
+        let today = formatLocalDate(new Date());
+        let records = dailyRecords[today] || [];
+        let tagMap = new Map();
+        for(let rec of records){
+            if(!tagMap.has(rec.tag)) tagMap.set(rec.tag, {count:0, minutes:0, color: rec.colorHex || COLOR_PALETTE[0]});
+            let stat = tagMap.get(rec.tag);
+            stat.count++; stat.minutes += rec.durationMinutes;
+        }
+        let container = document.getElementById('todayTagStatsContent');
+        if(tagMap.size === 0){ container.innerHTML = '<div>✨ 今日暂无记录</div>'; return; }
+        let html = '<div style="max-height:280px;overflow-y:auto;">';
+        for(let [tag, data] of tagMap.entries()){
+            let dotStyle = `background-color: ${data.color}; width:16px; height:16px; border-radius:20px; display:inline-block; margin-right:6px;`;
+            html += `<div class="stat-item"><span class="stat-label"><span style="${dotStyle}"></span> 🏷️ ${escapeHtml(tag)}</span><span class="stat-count">${data.count}次 / ${data.minutes}分钟</span></div>`;
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+    
+    function renderRecentRecords(){ 
+        let recs=getAllRecordsSorted(5); 
+        const container=document.getElementById('recentRecordsList'); 
+        if(!recs.length){ container.innerHTML='<div style="color:#ffcc88; font-size:0.7rem; text-align:center;">✨ 暂无记录</div>'; return; } 
+        let html=''; 
+        for(let r of recs){ 
+            html+=`<div class="recent-item">
+                        <div class="rec-info">📅 ${r.date.slice(5)} &nbsp;🏷️ ${escapeHtml(r.tag)} &nbsp;⏱️ ${r.durationMinutes}分</div>
+                        <div>
+                            <button class="rec-edit-btn" onclick="openEditPrompt('${r.date}',${r.id},'${escapeHtml(r.tag)}',${r.durationMinutes},'${r.colorHex || COLOR_PALETTE[0]}')">✏️ 编辑</button>
+                            <button class="rec-del-btn" onclick="confirmDelete('${r.date}',${r.id})">🗑️ 删除</button>
+                        </div>
+                    </div>`; 
+        } 
+        container.innerHTML=html; 
+    }
+    
+    let currentWeekBaseDate = new Date();
+    function getWeekRangeFromMonday(mondayDate) {
+        const start = new Date(mondayDate);
+        const end = new Date(mondayDate); end.setDate(mondayDate.getDate()+6);
+        return { start: formatLocalDate(start), end: formatLocalDate(end) };
+    }
+    function getDatesOfWeek(mondayDate) { let arr=[]; for(let i=0;i<7;i++){ let day=new Date(mondayDate); day.setDate(mondayDate.getDate()+i); arr.push(formatLocalDate(day)); } return arr; }
+    
+    function renderHeatmapForWeek(baseMonday) {
+        const weekDates = getDatesOfWeek(baseMonday);
+        const { start, end } = getWeekRangeFromMonday(baseMonday);
+        document.getElementById('currentWeekRange').innerText = `${start.slice(5)}~${end.slice(5)}`;
+        let matrix = Array(24).fill().map(() => Array(7).fill().map(() => []));
+        for(let col=0; col<7; col++) {
+            const dateStr = weekDates[col];
+            const records = dailyRecords[dateStr] || [];
+            for(let rec of records) {
+                const startDate = new Date(rec.startTimestamp);
+                const endDate = new Date(rec.endTimestamp);
+                const startHour = startDate.getHours(), endHour = endDate.getHours();
+                const startMinute = startDate.getMinutes(), endMinute = endDate.getMinutes();
+                const tag = rec.tag, color = rec.colorHex || COLOR_PALETTE[0];
+                if(startHour === endHour) {
+                    if(startHour>=0 && startHour<24) matrix[startHour][col].push({ minuteStart: startMinute, minuteEnd: endMinute, tag, color, durationMin: rec.durationMinutes });
+                } else {
+                    if(startHour>=0 && startHour<24) matrix[startHour][col].push({ minuteStart: startMinute, minuteEnd: 60, tag, color, durationMin: (60-startMinute) });
+                    if(endHour>=0 && endHour<24) matrix[endHour][col].push({ minuteStart: 0, minuteEnd: endMinute, tag, color, durationMin: endMinute });
+                    for(let h=startHour+1; h<endHour; h++) if(h>=0 && h<24) matrix[h][col].push({ minuteStart: 0, minuteEnd: 60, tag, color, durationMin: 60 });
+                }
+            }
+        }
+        const thead = document.getElementById('weekTableHead');
+        const tbody = document.getElementById('weekTableBody');
+        const weekdays = ['一','二','三','四','五','六','日'];
+        thead.innerHTML = '<tr><th>时</th>' + weekDates.map((d,idx) => `<th>${d.slice(5)}<br><span style="font-size:0.4rem;">${weekdays[idx]}</span></th>`).join('') + '</table>';
+        let bodyHtml = '';
+        for(let hour=6; hour<24; hour++) {
+            bodyHtml += `<tr><td style="background:#1f3e4b; font-weight:bold; font-size:0.44rem; padding:2px 0; text-align:center;">${hour.toString().padStart(2,'0')}</td>`;
+            for(let col=0; col<7; col++) {
+                const segments = matrix[hour][col];
+                let containerStyle = 'display:flex; width:100%; height:100%; min-height:21px; position:relative; background:#10262e;';
+                let barsHtml = `<div style="${containerStyle}">`;
+                if(segments.length === 0) barsHtml += `<div style="width:100%; height:100%; background:#1e3a44;"></div>`;
+                else {
+                    let minuteCoverage = new Array(60).fill(null);
+                    for(let seg of segments) for(let m=seg.minuteStart; m<seg.minuteEnd; m++) if(m>=0 && m<60) minuteCoverage[m] = seg;
+                    let i=0;
+                    while(i<60) {
+                        if(minuteCoverage[i] === null) {
+                            let start=i; while(i<60 && minuteCoverage[i]===null) i++;
+                            let width=((i-start)/60)*100;
+                            barsHtml += `<div style="width:${width}%; height:100%; background:#1e3a44; display:inline-block;"></div>`;
+                        } else {
+                            let seg = minuteCoverage[i];
+                            let start=i; while(i<60 && minuteCoverage[i] === seg) i++;
+                            let width=((i-start)/60)*100;
+                            const tooltipText = `${seg.tag} : ${seg.durationMin}分钟 (${seg.minuteStart}~${seg.minuteEnd}分)`;
+                            barsHtml += `<div class="minute-segment" data-tooltip="${escapeHtml(tooltipText)}" style="width:${width}%; height:100%; background-color:${seg.color}; display:inline-block; border-right: 0.5px solid rgba(0,0,0,0.2);"></div>`;
+                        }
+                    }
+                }
+                barsHtml += `</div>`;
+                bodyHtml += `<td class="hour-cell">${barsHtml}</td>`;
+            }
+            bodyHtml += '</tr>';
+        }
+        tbody.innerHTML = bodyHtml;
+        attachTooltipEvents();
+    }
+    
+    function attachTooltipEvents() {
+        let tooltipDiv = document.getElementById('dynamicTooltip');
+        if(!tooltipDiv) { tooltipDiv = document.createElement('div'); tooltipDiv.id='dynamicTooltip'; tooltipDiv.className='tooltip-bubble'; tooltipDiv.style.display='none'; document.body.appendChild(tooltipDiv); }
+        const segments = document.querySelectorAll('.minute-segment');
+        const hide = () => tooltipDiv.style.display='none';
+        const show = (e, text) => { if(text) { tooltipDiv.innerText = text; tooltipDiv.style.display = 'block'; tooltipDiv.style.left = (e.pageX+12)+'px'; tooltipDiv.style.top = (e.pageY-30)+'px'; } };
+        segments.forEach(seg => {
+            const raw = seg.getAttribute('data-tooltip');
+            if(raw) {
+                seg.onmouseenter = (e) => show(e, raw);
+                seg.onmousemove = (e) => { tooltipDiv.style.left = (e.pageX+12)+'px'; tooltipDiv.style.top = (e.pageY-30)+'px'; };
+                seg.onmouseleave = hide;
+            }
+        });
+    }
+    
+    function setWeekBaseAndRender(date) { currentWeekBaseDate = date; renderHeatmapForWeek(currentWeekBaseDate); }
+    function moveWeek(delta) { let newMonday = new Date(currentWeekBaseDate); newMonday.setDate(currentWeekBaseDate.getDate() + delta*7); setWeekBaseAndRender(newMonday); }
+    function resetToCurrentWeek() { let today = new Date(); let day = today.getDay(); const diff = (day===0 ? -6 : 1-day); let monday = new Date(today); monday.setDate(today.getDate()+diff); setWeekBaseAndRender(monday); }
+    
+    let currentYear = new Date().getFullYear(), currentMonth = new Date().getMonth();
+    let multiChart = null;
+    let selectedTagsForChart = [];
+    
+    function getMonthDates(y,m){ let arr=[], d=new Date(y,m,1); while(d.getMonth()===m){ arr.push(formatLocalDate(d)); d.setDate(d.getDate()+1); } return arr; }
+    
+    function computeTagDailyData(y,m){
+        let dates = getMonthDates(y,m);
+        let tagDailyMap = new Map();
+        for(let date of dates){
+            let records = dailyRecords[date] || [];
+            let tagMinutes = new Map();
+            for(let rec of records){
+                tagMinutes.set(rec.tag, (tagMinutes.get(rec.tag)||0) + rec.durationMinutes);
+            }
+            for(let [tag, mins] of tagMinutes.entries()){
+                if(!tagDailyMap.has(tag)) tagDailyMap.set(tag, { dataMap: new Map() });
+                tagDailyMap.get(tag).dataMap.set(date.slice(5), mins);
+            }
+        }
+        let resultMap = new Map();
+        for(let [tag, obj] of tagDailyMap.entries()){
+            let dataPoints = [];
+            for(let date of dates){
+                dataPoints.push(obj.dataMap.get(date.slice(5)) || 0);
+            }
+            resultMap.set(tag, { dates: dates.map(d=>d.slice(5)), dataPoints });
+        }
+        return { dates: dates.map(d=>d.slice(5)), tagDailyMap: resultMap };
+    }
+    
+    function updateTagSelector(){
+        let y=currentYear, m=currentMonth;
+        let { tagDailyMap } = computeTagDailyData(y,m);
+        let tags = Array.from(tagDailyMap.keys()).sort();
+        let container = document.getElementById('tagSelectorPanel');
+        if(!container) return;
+        let html = `<span style="color:#ffcc88; font-size:0.75rem;">📈 对比标签 (最多3个):</span>`;
+        for(let tag of tags){
+            let color = '#cccccc';
+            for(let recs of Object.values(dailyRecords)) for(let r of recs) if(r.tag === tag) { color = r.colorHex || COLOR_PALETTE[0]; break; }
+            let isSelected = selectedTagsForChart.includes(tag);
+            html += `<div class="tag-check-item ${isSelected ? 'selected' : ''}" data-tag="${escapeHtml(tag)}" style="border-color:${color}40;">
+                        <span class="tag-check-color" style="background:${color};"></span>
+                        <span class="tag-check-label">${escapeHtml(tag)}</span>
+                     </div>`;
+        }
+        container.innerHTML = html;
+        document.querySelectorAll('.tag-check-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                let tag = el.getAttribute('data-tag');
+                if(selectedTagsForChart.includes(tag)){
+                    selectedTagsForChart = selectedTagsForChart.filter(t => t !== tag);
+                } else {
+                    if(selectedTagsForChart.length >= 3) { alert('最多同时显示3个标签折线图'); return; }
+                    selectedTagsForChart.push(tag);
+                }
+                renderMultiTagChart();
+                updateTagSelector();
+            });
+        });
+    }
+    
+    function renderMultiTagChart(){
+        let y=currentYear, m=currentMonth;
+        let { dates, tagDailyMap } = computeTagDailyData(y,m);
+        if(!dates.length) return;
+        let datasets = [];
+        for(let tag of selectedTagsForChart){
+            let dataObj = tagDailyMap.get(tag);
+            if(!dataObj) continue;
+            let color = '#ffaa44';
+            for(let recs of Object.values(dailyRecords)) for(let r of recs) if(r.tag === tag) { color = r.colorHex || '#ffaa44'; break; }
+            datasets.push({
+                label: tag,
+                data: dataObj.dataPoints,
+                borderColor: color,
+                backgroundColor: color + '20',
+                borderWidth: 2.5,
+                tension: 0.2,
+                fill: false,
+                pointRadius: 3,
+                pointBackgroundColor: color
+            });
+        }
+        if(multiChart) multiChart.destroy();
+        let ctx = document.getElementById('multiTagChart').getContext('2d');
+        multiChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: dates, datasets: datasets },
+            options: { responsive: true, maintainAspectRatio: true, plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.raw} 分钟` } } }, scales: { y: { title: { display: true, text: '分钟', color: '#ffdd99' }, ticks: { color: '#ffdd99' } }, x: { ticks: { color: '#ffdd99', maxRotation: 45 } } } }
+        });
+    }
+    
+    function renderMonthTableWithCumulative(y,m){
+        let dates = getMonthDates(y,m);
+        let allTagsSet = new Set();
+        for(let date of dates){
+            let records = dailyRecords[date] || [];
+            for(let rec of records) allTagsSet.add(rec.tag);
+        }
+        let tags = Array.from(allTagsSet).sort();
+        let thead = document.getElementById('dailyTableHead');
+        thead.innerHTML = `<tr><th>日期</th>${tags.map(t => `<th>${escapeHtml(t)} (分钟)</th>`).join('')}</tr>`;
+        let tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        let cumulativeMap = new Map();
+        tags.forEach(t => cumulativeMap.set(t, 0));
+        for(let date of dates){
+            let records = dailyRecords[date] || [];
+            let tagMins = new Map();
+            for(let rec of records) tagMins.set(rec.tag, (tagMins.get(rec.tag)||0) + rec.durationMinutes);
+            let row = `<tr><td class="clickable-date" onclick="openDayModal('${date}')">${date.slice(5)}</td>`;
+            for(let tag of tags){
+                let mins = tagMins.get(tag) || 0;
+                cumulativeMap.set(tag, cumulativeMap.get(tag) + mins);
+                row += `<td>${mins}</td>`;
+            }
+            row += `</tr>`;
+            tbody.innerHTML += row;
+        }
+        let footRow = `<tr style="background:#2a5a6e;"><td><strong>累计总时长</strong></td>`;
+        for(let tag of tags){
+            footRow += `<td><strong>${cumulativeMap.get(tag)}</strong></td>`;
+        }
+        footRow += `</tr>`;
+        document.getElementById('tableFoot').innerHTML = footRow;
+    }
+    
+    function openDayModal(dateKey){ let records=dailyRecords[dateKey]||[]; if(!records.length){alert('无记录');return;} let modal=document.getElementById('recordModal'); document.getElementById('modalTitle').innerText=`📝 ${dateKey}`; let container=document.getElementById('modalRecordsList'); container.innerHTML=''; for(let rec of records){ let div=document.createElement('div'); div.className='record-list-item'; div.innerHTML=`<div>🏷️ ${escapeHtml(rec.tag)}  ${rec.durationMinutes}分<br><span style="font-size:0.7rem;">${new Date(rec.startTimestamp).toLocaleTimeString()}</span></div><div><button onclick="openEditPrompt('${dateKey}',${rec.id},'${escapeHtml(rec.tag)}',${rec.durationMinutes},'${rec.colorHex || COLOR_PALETTE[0]}')">✏️</button><button onclick="confirmDelete('${dateKey}',${rec.id})">🗑️</button></div>`; container.appendChild(div); } modal.style.display='flex'; }
+    function resetAllHistory(){ if(confirm('清空所有历史数据？')){ dailyRecords={}; saveData(); refreshAllViews(); renderHeatmapForWeek(currentWeekBaseDate); updateQuickTagsFromHistory(); } }
+    function archiveAndClearPrevMonth(){ let now=new Date(), prevYear=now.getFullYear(), prevMonth=now.getMonth()-1; if(prevMonth<0){prevMonth=11;prevYear--;} let has=false; for(let d of getMonthDates(prevYear,prevMonth)) if(dailyRecords[d]){has=true;break;} if(!has){alert('上月无数据');return;} let csvRows=[['日期','标签','分钟','颜色']]; for(let d of getMonthDates(prevYear,prevMonth)) if(dailyRecords[d]) for(let r of dailyRecords[d]) csvRows.push([d,r.tag,r.durationMinutes,r.colorHex]); let blob=new Blob(["\uFEFF"+csvRows.map(r=>r.join(',')).join('\n')],{type:"text/csv"}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`archive_${prevYear}_${prevMonth+1}.csv`; a.click(); if(confirm('导出完成，是否删除上月本地记录？')){ for(let d of getMonthDates(prevYear,prevMonth)) if(dailyRecords[d]) delete dailyRecords[d]; saveData(); refreshAllViews(); renderHeatmapForWeek(currentWeekBaseDate); updateQuickTagsFromHistory(); } }
+    function exportMonthToCSV(y,m){ let rows=[['日期','标签','分钟','颜色']]; for(let d of getMonthDates(y,m)) if(dailyRecords[d]) for(let r of dailyRecords[d]) rows.push([d,r.tag,r.durationMinutes,r.colorHex]); let blob=new Blob(["\uFEFF"+rows.map(r=>r.join(',')).join('\n')],{type:"text/csv"}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`month_${y}_${m+1}.csv`; a.click(); }
+    
+    function renderMonthView(y,m){ currentYear=y; currentMonth=m; document.getElementById('currentMonthYear').innerText=`${y}年 ${m+1}月`; updateTagSelector(); renderMultiTagChart(); renderMonthTableWithCumulative(y,m); }
+    
+    // 倒计时逻辑
+    let countdownInterval=null, remainingSeconds=0, totalSeconds=0, isRunning=false, isRingingFlag=false, selectedRing='classic', audioContext=null, ringIntervalTimer=null, currentOscillator=null, currentGain=null;
+    const minutesInputNumber = document.getElementById('minutesInputNumber');
+    const startBtn = document.getElementById('startBtn'), stopBtn = document.getElementById('stopBtn'), cancelBtn = document.getElementById('cancelBtn');
+    const timeDisplay = document.getElementById('timeDisplay'), progressFill = document.getElementById('progressFill'), statusMsgSpan = document.getElementById('statusMsg'), tagNameInput = document.getElementById('tagNameInput');
+    
+    function updatePageTitle(){ 
+        if(isRunning && remainingSeconds>0) {
+            let mins = Math.floor(remainingSeconds/60);
+            let secs = remainingSeconds % 60;
+            document.title=`⏰ ${mins}:${secs.toString().padStart(2,'0')}`;
+        } else if(isRingingFlag) document.title='🔔 时间到！';
+        else document.title='智能计时器 · 多标签对比';
+    }
+    
+    function stopRingtoneCompletely() {
+        if(ringIntervalTimer) { clearTimeout(ringIntervalTimer); ringIntervalTimer = null; }
+        if(currentOscillator) { try{ currentOscillator.stop(); currentOscillator.disconnect(); }catch(e){} currentOscillator = null; }
+        if(currentGain) { try{ currentGain.disconnect(); }catch(e){} currentGain = null; }
+        isRingingFlag = false;
+        updatePageTitle();
+    }
+    
+    async function stopRingtone() { stopRingtoneCompletely(); }
+    
+    async function startRingtone(){ 
+        if(isRingingFlag) return;
+        isRingingFlag=true;
+        updatePageTitle(); 
+        let ctx=audioContext; 
+        if(!ctx){ 
+            ctx=new (window.AudioContext||window.webkitAudioContext)(); 
+            audioContext=ctx; 
+        } 
+        if(ctx.state==='suspended') await ctx.resume();
+        
+        function beep(){ 
+            if(!isRingingFlag) return;
+            if(!audioContext || audioContext.state !== 'running') {
+                if(audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => { if(isRingingFlag) beep(); }).catch(() => {});
+                }
+                return;
+            }
+            try {
+                let osc = audioContext.createOscillator();
+                let gain = audioContext.createGain();
+                osc.type='sine';
+                osc.frequency.value=selectedRing==='classic'?880:660;
+                gain.gain.value=0.3;
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+0.5);
+                osc.stop(audioContext.currentTime+0.5);
+                currentOscillator = osc;
+                currentGain = gain;
+                ringIntervalTimer = setTimeout(()=>{ if(isRingingFlag) beep(); }, 600);
+            } catch(e) { console.log("beep error", e); }
+        }
+        if(ringIntervalTimer) { clearTimeout(ringIntervalTimer); ringIntervalTimer = null; }
+        beep();
+    }
+    
+    function finishCountdownAndRecord(elapsedSeconds){ 
+        if(countdownInterval) clearInterval(countdownInterval); 
+        countdownInterval=null; 
+        isRunning=false; 
+        stopRingtoneCompletely();
+        let wholeMins=Math.floor(elapsedSeconds/60); 
+        if(wholeMins>0 && isActiveTimer && currentTimerStartTime){ 
+            addRecordWithInterval(currentTimerTag, wholeMins, currentTimerStartTime, new Date(), currentTimerColor); 
+            statusMsgSpan.innerHTML=`⏸️ 已停止，记录 ${wholeMins} 分钟`; 
+        } else if(elapsedSeconds>0) statusMsgSpan.innerHTML=`⏸️ 停止，不足1分钟未记录`; 
+        else statusMsgSpan.innerHTML=`⏸️ 停止计时`; 
+        currentTimerStartTime=null; 
+        isActiveTimer=false; 
+        remainingSeconds=0; 
+        updateDisplayAndProgress(); 
+        refreshAllViews(); 
+        updatePageTitle(); 
+    }
+    
+    function cancelTimer(){ 
+        if(!isRunning && !currentTimerStartTime && !isRingingFlag){ 
+            statusMsgSpan.innerHTML='❌ 无活跃计时'; 
+            return; 
+        } 
+        if(countdownInterval) clearInterval(countdownInterval); 
+        countdownInterval=null; 
+        isRunning=false; 
+        isActiveTimer=false; 
+        currentTimerStartTime=null; 
+        stopRingtoneCompletely();
+        remainingSeconds=totalSeconds; 
+        updateDisplayAndProgress(); 
+        statusMsgSpan.innerHTML='🗑️ 已取消，未记录'; 
+        updatePageTitle(); 
+    }
+    
+    function tick(){ 
+        if(!isRunning) return; 
+        if(remainingSeconds<=0){ 
+            if(countdownInterval) clearInterval(countdownInterval); 
+            countdownInterval=null; 
+            isRunning=false; 
+            let fullMins=Math.floor(totalSeconds/60); 
+            if(isActiveTimer && currentTimerStartTime && fullMins>0){ 
+                addRecordWithInterval(currentTimerTag, fullMins, currentTimerStartTime, new Date(), currentTimerColor); 
+                statusMsgSpan.innerHTML=`✅ 完成! ${currentTimerTag} +${fullMins}分`; 
+            } 
+            currentTimerStartTime=null; 
+            isActiveTimer=false; 
+            remainingSeconds=0; 
+            updateDisplayAndProgress(); 
+            startRingtone();
+            refreshAllViews(); 
+            updatePageTitle(); 
+            return; 
+        } 
+        remainingSeconds--; 
+        updateDisplayAndProgress(); 
+    }
+    
+    function startTimer(){ 
+        if(isRingingFlag) stopRingtoneCompletely(); 
+        if(countdownInterval) clearInterval(countdownInterval); 
+        let mins=Math.min(120,Math.max(1,parseInt(minutesInputNumber.value,10)||5)); 
+        totalSeconds=mins*60; 
+        remainingSeconds=totalSeconds; 
+        isRunning=true; 
+        isActiveTimer=true; 
+        currentTimerStartTime=new Date(); 
+        currentTimerTag=tagNameInput.value.trim()||"未命名"; 
+        currentTimerColor=selectedTagColor; 
+        updateDisplayAndProgress(); 
+        countdownInterval=setInterval(tick,1000); 
+        statusMsgSpan.innerHTML=`⏳ 开始 ${mins}分钟 (${currentTimerTag})`; 
+        updatePageTitle(); 
+    }
+    
+    function stopTimer(){ 
+        if(isRingingFlag) stopRingtoneCompletely();
+        if(!isRunning && !currentTimerStartTime && !isRingingFlag){ 
+            statusMsgSpan.innerHTML='无进行中计时'; 
+            return; 
+        } 
+        if(countdownInterval) clearInterval(countdownInterval); 
+        if(isRunning && currentTimerStartTime && isActiveTimer){ 
+            let elapsed=totalSeconds-remainingSeconds; 
+            if(elapsed>0) finishCountdownAndRecord(elapsed); 
+            else{ 
+                isRunning=false; 
+                isActiveTimer=false; 
+                currentTimerStartTime=null; 
+                updateDisplayAndProgress(); 
+                statusMsgSpan.innerHTML='⏸️ 停止'; 
+            } 
+        } else{ 
+            isRunning=false; 
+            isActiveTimer=false; 
+            currentTimerStartTime=null; 
+            updateDisplayAndProgress(); 
+            if(!isRingingFlag) statusMsgSpan.innerHTML='⏸️ 停止'; 
+        } 
+        updatePageTitle(); 
+    }
+    
+    function updateDisplayAndProgress(){ 
+        let m=Math.floor(remainingSeconds/60), s=remainingSeconds%60; 
+        timeDisplay.innerText=`${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; 
+        updatePageTitle(); 
+        if(totalSeconds>0) progressFill.style.width=((totalSeconds-remainingSeconds)/totalSeconds*100)+'%'; 
+        else progressFill.style.width='0%'; 
+    }
+    
+    function initColorPalette(){ 
+        let container=document.getElementById('colorPaletteContainer'); 
+        COLOR_PALETTE.forEach(c=>{ 
+            let swatch=document.createElement('div'); 
+            swatch.className='color-swatch'; 
+            swatch.style.backgroundColor=c; 
+            swatch.addEventListener('click',()=>{ 
+                document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected-tag-color')); 
+                swatch.classList.add('selected-tag-color'); 
+                selectedTagColor=c; 
+                statusMsgSpan.innerHTML=`🎨 颜色已切换`; 
+            }); 
+            container.appendChild(swatch); 
+            if(c===COLOR_PALETTE[0]) swatch.classList.add('selected-tag-color'); 
+        }); 
+    }
+    
+    startBtn.addEventListener('click',startTimer); 
+    stopBtn.addEventListener('click',stopTimer); 
+    cancelBtn.addEventListener('click',cancelTimer);
+    minutesInputNumber.addEventListener('change', () => { if(!isRunning && !isRingingFlag){ let val=Math.min(120,Math.max(1,parseInt(minutesInputNumber.value,10)||5)); totalSeconds=val*60; remainingSeconds=totalSeconds; updateDisplayAndProgress(); } });
+    document.getElementById('prevWeekBtn').addEventListener('click',()=>moveWeek(-1));
+    document.getElementById('nextWeekBtn').addEventListener('click',()=>moveWeek(1));
+    document.getElementById('resetWeekTodayBtn').addEventListener('click',resetToCurrentWeek);
+    document.getElementById('prevMonthBtn').addEventListener('click',()=>{ let nm=currentMonth-1,ny=currentYear; if(nm<0){nm=11;ny--;} renderMonthView(ny,nm); });
+    document.getElementById('nextMonthBtn').addEventListener('click',()=>{ let nm=currentMonth+1,ny=currentYear; if(nm>11){nm=0;ny++;} renderMonthView(ny,nm); });
+    document.getElementById('refreshChartBtn').addEventListener('click',()=>{ renderMonthView(currentYear,currentMonth); });
+    document.getElementById('exportMonthCSVBtn').addEventListener('click',()=>exportMonthToCSV(currentYear,currentMonth));
+    document.getElementById('resetAllDataBtn').addEventListener('click',resetAllHistory);
+    document.getElementById('archivePrevMonthBtn').addEventListener('click',archiveAndClearPrevMonth);
+    document.getElementById('closeModalBtn').addEventListener('click',()=>document.getElementById('recordModal').style.display='none');
+    document.getElementById('clearQuickTagsBtn').addEventListener('click', clearAllQuickTags);
+    window.onclick=function(e){ if(e.target===document.getElementById('recordModal')) document.getElementById('recordModal').style.display='none'; };
+    
+    function init(){ 
+        loadData(); 
+        initColorPalette(); 
+        document.querySelector('.ring-card[data-ring="classic"]').classList.add('selected'); 
+        selectedRing='classic'; 
+        document.querySelectorAll('.ring-card').forEach(c=>{ 
+            c.addEventListener('click',()=>{ 
+                if(isRingingFlag){ 
+                    statusMsgSpan.innerHTML='请先停止闹钟'; 
+                    return; 
+                } 
+                document.querySelectorAll('.ring-card').forEach(c2=>c2.classList.remove('selected')); 
+                c.classList.add('selected'); 
+                selectedRing=c.getAttribute('data-ring'); 
+            }); 
+        }); 
+        let initMin=5; 
+        totalSeconds=initMin*60; 
+        remainingSeconds=totalSeconds; 
+        updateDisplayAndProgress(); 
+        refreshAllViews(); 
+        resetToCurrentWeek(); 
+        updatePageTitle(); 
+        renderMonthView(new Date().getFullYear(), new Date().getMonth());
+        // 初始化常用标签
+        renderQuickTags();
+        // 如果历史有数据但常用标签为空，自动提取
+        const hasData = Object.keys(dailyRecords).length > 0;
+        if (hasData) {
+            const currentTags = getQuickTags();
+            if (currentTags.length === 0) {
+                updateQuickTagsFromHistory();
+            }
+        }
+        // 全局暴露applyQuickTag
+        window.applyQuickTag = applyQuickTag;
+    }
+    init();
+    function escapeHtml(str){ return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+</script>
+</body>
+</html>
